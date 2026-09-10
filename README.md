@@ -4,6 +4,8 @@
 
 Projet de démonstration de Nicolas Hedoire : TypeScript, Mistral via Ollama, MCP sur HTTP, Docker Compose, persistance SQLite et tests d'intégration. Le code et les données sont conçus pour être examinés et exécutés par un recruteur. Toutes les sociétés, demandes et produits sont fictifs.
 
+**Preuves disponibles :** tests Docker, exécution réelle de Mistral en 7 tours avec trace MCP et devis vérifié, puis contrôles de fin explicites pour éviter les recherches répétées sur un dossier incomplet. [Voir les résultats, les échecs observés et leurs limites](evidence/README.md).
+
 ## Essayer avec Docker
 
 Prérequis : Docker avec Compose, au moins 12 Go d'espace libre pour images, modèle et marge de travail. Pour Mistral 7B, prévoir au moins 8 Go de mémoire disponibles pour Ollama ; 16 Go de RAM système ou plus sont conseillés. Le premier lancement télécharge les dépendances et environ 4,4 Go de poids. Les suivants réutilisent le volume du modèle.
@@ -66,7 +68,7 @@ docker compose --profile llm --profile worker up -d --build worker
 docker compose logs -f worker
 ```
 
-Le worker traite les demandes disponibles, conserve son avancement, puis vérifie la file toutes les 60 secondes. Une reprise continue les demandes restantes. Les erreurs d'inférence sont réessayées sur trois passages maximum. Les résultats nécessitant une intervention humaine et les budgets épuisés sont conservés pour revue, sans relance automatique.
+Le worker traite les demandes disponibles, conserve son avancement, puis vérifie la file toutes les 60 secondes. Une reprise continue les demandes restantes ; un devis déjà persistant est repris sans nouvelle inférence. Les erreurs d'inférence sont réessayées sur trois passages maximum. Les résultats nécessitant une intervention humaine et les budgets épuisés sont conservés pour revue, sans relance automatique.
 
 La file fournie contient cinq demandes fixes. Pour une démonstration commerciale, la source inbox serait remplacée par un adaptateur vers le formulaire, le CRM ou la messagerie de la PME. Un seul worker doit utiliser le volume d'état : cette version n'est pas un ordonnanceur distribué.
 

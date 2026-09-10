@@ -92,8 +92,14 @@ async function worker(hub: Hub) {
       if (previous && (previous.status !== 'retry' || previous.attempts >= 3)) continue;
       const attempts = (previous?.attempts ?? 0) + 1;
       try {
-        const result = await runAgent(hub, id, chat);
-        state[id] = { attempts, status: result.status, result };
+        const existingQuote = await hub.call('quotes__get', { messageId: id });
+        if (existingQuote) {
+          hub.trace.add('worker.recovered_quote', { messageId: id });
+          state[id] = { attempts, status: 'draft_prepared', result: { source: 'existing_persisted_quote', quote: existingQuote } };
+        } else {
+          const result = await runAgent(hub, id, chat);
+          state[id] = { attempts, status: result.status, result };
+        }
       } catch (error) { state[id] = { attempts, status: 'retry', result: { error: error instanceof Error ? error.message : String(error) } }; }
       writeFileSync(`${statePath}.tmp`, JSON.stringify(state, null, 2)); renameSync(`${statePath}.tmp`, statePath);
       console.log(JSON.stringify({ messageId: id, ...state[id] }));

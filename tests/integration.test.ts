@@ -175,17 +175,28 @@ test('agent blocks out-of-scope writes and bounds a looping model', async t => {
   assert.equal(result.status, 'budget_exhausted'); assert.equal(store.count(), 0);
 });
 
-test('agent forwards real MCP results to the next model turn and verifies persisted draft', async t => {
+test('agent forwards real MCP results to the next model turn and stops on a persisted draft', async t => {
   const { hub } = await setup(t);
   let turn = 0;
   const chat: Chat = async (messages, tools) => {
     assert.equal(tools.length, 6);
-    if (++turn === 1) return { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'quotes__prepare', arguments: valid } }] } };
-    assert.equal(JSON.parse(messages.at(-1)!.content).totalExVatCents, 63600);
-    return { message: { role: 'assistant', content: 'Devis préparé, à valider.' } };
+    if (++turn === 1) return { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'inbox__get', arguments: { id: 'm-100' } } }] } };
+    assert.equal(JSON.parse(messages.at(-1)!.content).sender, 'lea@atelier-demo.example');
+    return { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'quotes__prepare', arguments: valid } }] } };
   };
   const result = await runAgent(hub, 'm-100', chat);
   assert.equal(result.status, 'draft_prepared'); assert.equal(result.steps, 2);
+});
+
+test('agent stops on authoritative missing data even if a model would keep looping', async t => {
+  const { hub, store } = await setup(t);
+  let calls = 0;
+  const chat: Chat = async () => { calls++; return { message: { role: 'assistant', content: '', tool_calls: [
+    { function: { name: 'crm__find', arguments: { email: 'unknown@fictional.example' } } },
+  ] } }; };
+  const result = await runAgent(hub, 'm-101', chat);
+  assert.equal(result.status, 'human_review'); assert.equal(result.reason, 'UNKNOWN_CUSTOMER');
+  assert.equal(calls, 1); assert.equal(store.count(), 0);
 });
 
 test('Ollama adapter derives decision grammar from MCP schemas and forwards the selected call', async t => {

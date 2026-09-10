@@ -1,19 +1,20 @@
 import { z } from 'zod';
 import { Hub, ToolFailure } from './hub.js';
 import type { Quote } from './quotes.js';
+import type { Inquiry, Product } from './fixtures.js';
 
 const toolCallSchema = z.object({ function: z.object({ name: z.string(), arguments: z.record(z.string(), z.unknown()) }) });
 const responseSchema = z.object({ message: z.object({ role: z.literal('assistant'), content: z.string(), tool_calls: z.array(toolCallSchema).optional() }),
   model: z.string().optional(), eval_count: z.number().optional(), prompt_eval_count: z.number().optional(), total_duration: z.number().optional() });
 export type ChatMessage = { role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_name?: string; tool_calls?: z.infer<typeof toolCallSchema>[] };
 export type ModelReply = z.infer<typeof responseSchema>;
-export type AgentResult = { messageId: string; status: 'draft_prepared' | 'human_review' | 'budget_exhausted'; steps: number; summary: string; quote: Quote | null };
+export type AgentResult = { messageId: string; status: 'draft_prepared' | 'human_review' | 'budget_exhausted'; steps: number; summary: string; quote: Quote | null; reason?: string };
 export type Chat = (messages: ChatMessage[], tools: unknown[]) => Promise<ModelReply>;
 
 export function ollamaChat(baseUrl: string, model: string, timeoutMs = 240_000): Chat {
   // This adapter has no cloud credential and only calls the configured Ollama endpoint.
   return async (messages, tools) => {
-    // Small models are more reliable with a grammar-constrained decision than free-form native tool calls.
+    // The tested native-call prompt produced prose; constrain the decision format explicitly.
     // The alternatives and argument schemas come from live MCP discovery, not a hard-coded workflow.
     const definitions = tools as { function: { name: string; description?: string; parameters: Record<string, unknown> } }[];
     const format = { oneOf: [
@@ -58,6 +59,7 @@ export async function runAgent(hub: Hub, messageId: string, chat: Chat, maxSteps
   const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt },
     { role: 'user', content: `Traite la demande ${messageId} et prépare son devis si les données le permettent.` }];
   let toolCalls = 0;
+  let observedInquiry: Inquiry | undefined;
   for (let step = 1; step <= maxSteps; step++) {
     hub.trace.add('llm.request', { step, messageId, messageCount: messages.length });
     const reply = await chat(messages, tools);
@@ -76,13 +78,35 @@ export async function runAgent(hub: Hub, messageId: string, chat: Chat, maxSteps
         // Scope writes to this job, even if a model is redirected by an injected message.
         if (name === 'quotes__prepare' && args.messageId !== messageId) throw new ToolFailure('JOB_SCOPE_VIOLATION', 'Cannot write a quote for a different inquiry');
         result = await hub.call(name, args);
+        // Terminal domain conditions do not depend on the model recognizing that it must stop.
+        if (name === 'inbox__get' && args.id === messageId) {
+          observedInquiry = result as Inquiry;
+          if (observedInquiry.items.some(item => item.quantity === null)) return review(step, 'MISSING_QUANTITY');
+        }
+        if (name === 'crm__find' && result === null) return review(step, 'UNKNOWN_CUSTOMER');
+        if (name === 'catalog__get' && observedInquiry) {
+          const product = result as Product;
+          const requested = observedInquiry.items.find(item => item.sku === product.sku);
+          if (requested?.quantity != null && requested.quantity > product.available) return review(step, 'INSUFFICIENT_STOCK');
+        }
+        if (name === 'quotes__prepare') {
+          const quote = await hub.call<Quote>('quotes__get', { messageId });
+          hub.trace.add('agent.completed', { messageId, quoteId: quote.id });
+          return { messageId, status: 'draft_prepared', steps: step, quote,
+            summary: `Devis ${quote.id} préparé : ${(quote.totalExVatCents / 100).toFixed(2)} EUR HT. Statut : ${quote.status}.` };
+        }
       } catch (error) {
+        if (error instanceof ToolFailure && ['CUSTOMER_MISMATCH', 'MISSING_QUANTITY', 'INSUFFICIENT_STOCK', 'SERVICE_UNAVAILABLE'].includes(error.code)) return review(step, error.code);
         result = { error: error instanceof ToolFailure ? error.code : 'SERVICE_UNAVAILABLE', message: error instanceof Error ? error.message : String(error) };
       }
       messages.push({ role: 'tool', tool_name: name, content: JSON.stringify(result) });
     }
   }
   return exhausted(maxSteps);
+  async function review(steps: number, reason: string): Promise<AgentResult> {
+    hub.trace.add('agent.human_review', { messageId, reason });
+    return { messageId, status: 'human_review', reason, steps, summary: `Vérification humaine nécessaire : ${reason}.`, quote: await hub.call<Quote | null>('quotes__get', { messageId }) };
+  }
   async function exhausted(steps: number): Promise<AgentResult> {
     hub.trace.add('agent.budget_exhausted', { messageId, steps, toolCalls });
     return { messageId, status: 'budget_exhausted', steps, summary: 'Budget atteint : vérification humaine nécessaire.', quote: await hub.call<Quote | null>('quotes__get', { messageId }) };

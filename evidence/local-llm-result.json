@@ -1,0 +1,34 @@
+{
+  "mode": "local_llm",
+  "model": "mistral:7b-instruct-v0.3-q4_K_M",
+  "generatedAt": "2026-09-10T10:10:26.781Z",
+  "runId": "c1255a32-d095-4c6c-9eae-b1fec9ccc43b",
+  "durationMs": 194537,
+  "quoteExistedBeforeRun": true,
+  "result": {
+    "messageId": "m-100",
+    "status": "draft_prepared",
+    "steps": 7,
+    "summary": "Une demande de devis a été préparée pour l'atelier Démo (fictif) avec un total hors taxes de 636,00 €. Le devis est en attente de validation humaine.",
+    "quote": {
+      "id": "q-m-100",
+      "messageId": "m-100",
+      "customerId": "c-atelier",
+      "status": "pending_human_review",
+      "currency": "EUR",
+      "totalExVatCents": 63600,
+      "items": [
+        {
+          "sku": "HUB-01",
+          "quantity": 1,
+          "unitPriceCents": 24900
+        },
+        {
+          "sku": "SENSOR-01",
+          "quantity": 3,
+          "unitPriceCents": 12900
+        }
+      ]
+    }
+  }
+}

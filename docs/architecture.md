@@ -16,6 +16,8 @@ Ce choix répond à un échec observé : lors du premier essai en appels d'outil
 
 Les limites sont 12 tours, 24 appels d'outils, 768 tokens générés par tour et 240 secondes par requête de modèle. Ce plafond peut être long sur CPU : la limite d'étapes évite une boucle infinie, elle n'est pas un SLA. Aucune réussite ne se déduit du seul texte de réponse : la CLI relit le devis persistant. Un résultat absent reste à examiner, même si le modèle affirme avoir terminé.
 
+Les conditions terminales sont contrôlées par l'orchestrateur à partir des réponses MCP : client absent, quantité manquante ou stock insuffisant interrompent l'agent avec un motif de revue humaine ; une préparation de devis réussie est relue dans le service puis clôturée avec un résumé calculé. Ce sont des règles de fin et de sécurité, pas un routeur qui ferait les recherches à la place du modèle. Elles ont été ajoutées après avoir observé Mistral répéter ses recherches sur un client inconnu jusqu'au budget maximal.
+
 Le texte libre est conservé pour démontrer une entrée non fiable. Les lignes demandées proviennent d'un formulaire structuré. Cette version ne revendique pas l'extraction fiable de lignes depuis un email arbitraire, un PDF ou une pièce jointe.
 
 ## Autorité et effets

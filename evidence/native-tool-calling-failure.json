@@ -1,0 +1,15 @@
+{
+  "mode": "local_llm",
+  "model": "mistral:7b-instruct-v0.3-q4_K_M",
+  "generatedAt": "2026-09-10T09:58:22.880Z",
+  "runId": "4ca076e9-17a1-4a8c-817e-812dd4950132",
+  "durationMs": 29778,
+  "quoteExistedBeforeRun": false,
+  "result": {
+    "messageId": "m-100",
+    "status": "human_review",
+    "steps": 1,
+    "summary": "  Commencez par lister les demandes en attente dans l'inbox :\n\n```\ninbox__list()\n```\n\nRecherchez le client correspondant à l'adresse e-mail du message m-100 :\n\n```\ncrm__find(email=\"sender_email_of_m-100\")\n```\n\nLisez le message m-100 pour obtenir les produits demandés :\n\n```\ninbox__get(id=\"m-100\")\n```\n\nVérifiez que les produits demandés sont disponibles dans le catalogue :\n\n```\ncatalog__get(sku=\"sku_1\")\ncatalog__get(sku=\"sku_2\")\n...\n```\n\nSi tous les produits sont disponibles, préparez un devis pour le message m-100 :\n\n```\nquotes__prepare(messageId=\"m-100\", customerId=\"customer_id\", items=[{\"sku\":\"sku_1\", \"quantity\":quantity_1}, {\"sku\":\"sku_2\", \"quantity\":quantity_2}, ...])\n```\n\nSi un produit n'est pas disponible, expliquez-le au client et demandez-lui de vous fournir des informations supplémentaires.\n\nUne fois le devis préparé, donnez un résumé en français :\n\n```\nLe devis pour le message m-100 a été préparé. Veuillez le examiner et approuver le si les informations sont correctes.\n```\n\nArrêtez de faire des appels aux outils.",
+    "quote": null
+  }
+}
