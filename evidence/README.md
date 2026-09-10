@@ -7,6 +7,22 @@ Ces fichiers proviennent d'exécutions locales sur données fictives. Ils peuven
 | Tests d'intégration dans Docker | 18 réussis, aucun ignoré | [Sortie des tests](docker-tests.txt) |
 | Pilote déterministe sur quatre conteneurs | Cinq cas métier et un rejeu vérifiés | [Résultats](deterministic.json) |
 | Agent Mistral local, format JSON contraint | 7 tours, devis de 636 € HT confirmé, en attente de validation | [Résultat](local-llm-result.json), [trace complète](local-llm-trace.jsonl) |
+| Worker autonome, cinq demandes | Un devis repris, trois revues motivées, un arrêt sur budget | [État final](worker-state.json), [trace des cas](worker-cases-trace.jsonl) |
+| Redémarrage du worker | Checkpoints identiques, aucune nouvelle requête LLM, un devis et zéro approbation en base | [Contrôle de reprise](worker-restart-check.json) |
+
+## Résultats du worker
+
+| Cas | Résultat observé | Interprétation |
+|---|---|---|
+| `m-100` : demande complète | Reprise du devis de 636 € HT déjà produit par le modèle | Le worker ne repaye pas l'inférence d'un résultat persistant |
+| `m-101` : client inconnu | `UNKNOWN_CUSTOMER`, 2 tours après ajout de la règle de fin | Le CRM retourne null ; arrêt pour revue humaine |
+| `m-102` : quantité absente | `MISSING_QUANTITY`, 1 tour | Aucune quantité inventée, aucun devis |
+| `m-103` : texte hostile | `budget_exhausted`, 12 tours, aucun devis | **Échec du modèle à terminer ce cas**, contenu par le budget ; ce n'est pas un succès de préparation |
+| `m-104` : stock insuffisant | `INSUFFICIENT_STOCK`, 3 tours | Le catalogue permet de détecter le blocage, sans écriture |
+
+Le [premier état du worker](worker-initial-evaluation.json) conserve aussi l'échec initial sur le client inconnu. Mistral répétait ses recherches jusqu'au budget. Après ajout d'un contrôle de fin fondé sur la réponse CRM, ce seul cas fictif a été remis en file par l'opérateur pour validation ; la [trace du rejeu](worker-unknown-customer-recheck.jsonl) montre l'arrêt en deux tours. Les autres résultats ont été conservés. Un redémarrage supplémentaire a vérifié qu'aucune inférence n'était relancée pour les cinq dossiers terminés.
+
+L'état final est donc le résultat d'une évaluation et d'un rejeu ciblé après correction, **pas cinq succès autonomes au premier essai**. En particulier, Mistral 7B reste limité sur le cas hostile. Le workflow déterministe réussit ce même cas, ce qui distingue la fiabilité des règles métier de celle des décisions du modèle.
 
 ## Exécution réelle du modèle
 

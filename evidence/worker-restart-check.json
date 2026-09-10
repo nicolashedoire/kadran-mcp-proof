@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-09-10T11:24:46.269771+00:00",
+  "passed": true,
+  "method": "Restart an idle worker with five persisted outcomes; verify a queue poll, unchanged checkpoints, zero new LLM requests and database counts.",
+  "worker": {
+    "runId": "922eb139-0a06-4927-baf1-3047a663fe37",
+    "llmRequests": 0,
+    "queueChecks": 1,
+    "stateSha256": "13cd6e53597c9e706ca7a5e0c7579b55ff9886f1e907844adfcfb8a9d03577da"
+  },
+  "database": {
+    "quotes": 1,
+    "approvals": 0
+  }
+}

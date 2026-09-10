@@ -1,0 +1,75 @@
+{
+  "m-100": {
+    "attempts": 1,
+    "status": "draft_prepared",
+    "result": {
+      "source": "existing_persisted_quote",
+      "quote": {
+        "id": "q-m-100",
+        "messageId": "m-100",
+        "customerId": "c-atelier",
+        "status": "pending_human_review",
+        "currency": "EUR",
+        "totalExVatCents": 63600,
+        "items": [
+          {
+            "sku": "HUB-01",
+            "quantity": 1,
+            "unitPriceCents": 24900
+          },
+          {
+            "sku": "SENSOR-01",
+            "quantity": 3,
+            "unitPriceCents": 12900
+          }
+        ]
+      }
+    }
+  },
+  "m-101": {
+    "attempts": 1,
+    "status": "budget_exhausted",
+    "result": {
+      "messageId": "m-101",
+      "status": "budget_exhausted",
+      "steps": 12,
+      "summary": "Budget atteint : vérification humaine nécessaire.",
+      "quote": null
+    }
+  },
+  "m-102": {
+    "attempts": 1,
+    "status": "human_review",
+    "result": {
+      "messageId": "m-102",
+      "status": "human_review",
+      "reason": "MISSING_QUANTITY",
+      "steps": 1,
+      "summary": "Vérification humaine nécessaire : MISSING_QUANTITY.",
+      "quote": null
+    }
+  },
+  "m-103": {
+    "attempts": 1,
+    "status": "budget_exhausted",
+    "result": {
+      "messageId": "m-103",
+      "status": "budget_exhausted",
+      "steps": 12,
+      "summary": "Budget atteint : vérification humaine nécessaire.",
+      "quote": null
+    }
+  },
+  "m-104": {
+    "attempts": 1,
+    "status": "human_review",
+    "result": {
+      "messageId": "m-104",
+      "status": "human_review",
+      "reason": "INSUFFICIENT_STOCK",
+      "steps": 3,
+      "summary": "Vérification humaine nécessaire : INSUFFICIENT_STOCK.",
+      "quote": null
+    }
+  }
+}
