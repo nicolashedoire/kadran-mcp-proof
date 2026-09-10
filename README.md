@@ -82,7 +82,7 @@ Cette commande marque l'approbation dans SQLite ; elle n'envoie aucun document. 
 
 ## Mac Apple Silicon : option GPU
 
-Le mode entièrement Docker exécute Ollama sur CPU sur macOS. Pour utiliser Metal, lancer Ollama nativement tout en conservant l'agent et les quatre services dans Docker :
+Le mode entièrement Docker exécute Ollama sur CPU sur macOS. Pour utiliser Metal, lancer Ollama nativement tout en conservant l'agent et les quatre services dans Docker. Si le modèle est déjà installé dans Docker, l'installation native stocke une seconde copie d'environ 4,4 Go : prévoir cet espace supplémentaire avant de la lancer.
 
 ```sh
 # Dans un terminal, si l'application Ollama n'est pas déjà démarrée :
