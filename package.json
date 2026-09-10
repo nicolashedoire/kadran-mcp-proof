@@ -1,0 +1,27 @@
+{
+  "name": "kadran-mcp-proof",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reproducible MCP agent engineering evidence for SME operations",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "demo": "npm run build && node dist/src/cli.js demo",
+    "verify": "npm test && node dist/src/cli.js verify",
+    "agent": "npm run build && node dist/src/cli.js agent"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.2",
+    "typescript": "7.0.2"
+  }
+}

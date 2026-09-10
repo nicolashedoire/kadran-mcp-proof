@@ -1,0 +1,130 @@
+name: kadran-mcp-proof
+
+x-app: &app
+  build: { context: ., target: runtime }
+  image: kadran-mcp-proof:local
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+  networks: [business]
+
+x-health: &health
+  test: [CMD, node, -e, "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  interval: 3s
+  timeout: 2s
+  retries: 20
+
+x-endpoints: &endpoints
+  INBOX_URL: http://inbox:3000/mcp
+  CRM_URL: http://crm:3000/mcp
+  CATALOG_URL: http://catalog:3000/mcp
+  QUOTES_URL: http://quotes:3000/mcp
+
+x-depends: &depends
+  inbox: { condition: service_healthy }
+  crm: { condition: service_healthy }
+  catalog: { condition: service_healthy }
+  quotes: { condition: service_healthy }
+
+services:
+  inbox:
+    <<: *app
+    command: [serve]
+    environment: { SERVICE: inbox }
+    healthcheck: *health
+  crm:
+    <<: *app
+    command: [serve]
+    environment: { SERVICE: crm }
+    healthcheck: *health
+  catalog:
+    <<: *app
+    command: [serve]
+    environment: { SERVICE: catalog }
+    healthcheck: *health
+  quotes:
+    <<: *app
+    command: [serve]
+    environment:
+      <<: *endpoints
+      SERVICE: quotes
+      QUOTE_DB: /data/quotes.sqlite
+    volumes: [quotes-data:/data]
+    depends_on:
+      inbox: { condition: service_healthy }
+      crm: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+    healthcheck: *health
+  demo:
+    <<: *app
+    profiles: [demo]
+    command: [verify]
+    environment:
+      <<: *endpoints
+      OUTPUT_DIR: /output
+    volumes: [evidence:/output]
+    depends_on: *depends
+  tests:
+    build: { context: ., target: test }
+    profiles: [test]
+    networks: [business]
+  ollama:
+    image: ollama/ollama@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+    profiles: [llm]
+    volumes: [models:/root/.ollama]
+    networks: [business, model-download]
+    environment: { OLLAMA_NO_CLOUD: '1', OLLAMA_NUM_PARALLEL: '1' }
+    healthcheck:
+      test: [CMD, ollama, list]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  model-pull:
+    image: ollama/ollama@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+    profiles: [llm]
+    entrypoint: [ollama]
+    command: [pull, '${OLLAMA_MODEL:-mistral:7b-instruct-v0.3-q4_K_M}']
+    environment: { OLLAMA_HOST: 'http://ollama:11434' }
+    networks: [business]
+    depends_on:
+      ollama: { condition: service_healthy }
+  agent:
+    <<: *app
+    profiles: [llm]
+    command: [agent, m-100]
+    environment:
+      <<: *endpoints
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct-v0.3-q4_K_M}
+      OUTPUT_DIR: /output
+    volumes: [agent-evidence:/output]
+    depends_on:
+      <<: *depends
+      model-pull: { condition: service_completed_successfully }
+  worker:
+    <<: *app
+    profiles: [worker]
+    command: [worker]
+    restart: unless-stopped
+    stop_grace_period: 5m
+    environment:
+      <<: *endpoints
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct-v0.3-q4_K_M}
+      OUTPUT_DIR: /output
+    volumes: [worker-state:/output]
+    depends_on:
+      <<: *depends
+      model-pull: { condition: service_completed_successfully }
+
+networks:
+  business: { internal: true }
+  model-download: {}
+volumes:
+  quotes-data:
+  evidence:
+  agent-evidence:
+  worker-state:
+  models:

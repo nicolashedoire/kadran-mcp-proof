@@ -1,0 +1,28 @@
+name: Verify MCP proof
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests inside Docker
+        run: docker compose --profile test run --build --rm tests
+      - name: Exercise four independent MCP containers
+        run: docker compose --profile demo run --build --rm demo
+      - name: Export reproducible verification
+        if: always()
+        run: |
+          mkdir -p runtime
+          docker compose --profile demo run --no-deps --rm --entrypoint sh demo -c 'cat /output/verification.json' > runtime/verification.json
+          docker compose logs > runtime/services.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-verification
+          path: runtime/
+      - name: Stop containers
+        if: always()
+        run: docker compose --profile demo --profile test down -v

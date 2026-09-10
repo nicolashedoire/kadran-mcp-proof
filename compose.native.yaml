@@ -1,0 +1,23 @@
+# macOS option: business services and agent stay in Docker; Ollama runs on the host with Metal.
+# Requires Docker Compose >= 2.24.4 for !override.
+services:
+  agent:
+    profiles: !override [native]
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+    networks: !override [business, model-download]
+    depends_on: !override
+      inbox: { condition: service_healthy }
+      crm: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+      quotes: { condition: service_healthy }
+  worker:
+    profiles: !override [native-worker]
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+    networks: !override [business, model-download]
+    depends_on: !override
+      inbox: { condition: service_healthy }
+      crm: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+      quotes: { condition: service_healthy }

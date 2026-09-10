@@ -1,0 +1,26 @@
+(node:13) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ HTTP transport outage exhausts retries, without fabricating a tool result (207.678166ms)
+✔ HTTP services reject untrusted browser origins and host headers (5.174833ms)
+✔ HTTP MCP discovery exposes six typed tools and no approval/send capability (48.626792ms)
+✔ quote service independently verifies sources via MCP and calculates 636 EUR excluding VAT (45.190458ms)
+✔ unknown customer, incomplete intake and stock shortage become human review without writes (30.127375ms)
+✔ server rejects forged customer, altered quantities, duplicate lines and insufficient stock (34.650833ms)
+✔ strict MCP schemas reject price injection, invalid quantities and extra fields (26.742042ms)
+✔ malicious inbox body cannot change price or authorize send in the deterministic fixture (21.979958ms)
+✔ concurrent replay produces exactly one quote; changed payload conflicts (70.038958ms)
+✔ transient dependency failure retries and recovers with bounded attempts (188.491917ms)
+✔ persistent service failure stops after three attempts and creates no quote (192.018416ms)
+✔ lost acknowledgement after commit retries without duplicating a quote (83.299333ms)
+✔ SQLite restart retains idempotency and explicit operator approval (56.082416ms)
+✔ agent reports actual stored state, never an invented successful model response (15.487709ms)
+✔ agent blocks out-of-scope writes and bounds a looping model (25.564708ms)
+✔ agent forwards real MCP results to the next model turn and verifies persisted draft (25.604958ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1194.089625
