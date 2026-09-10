@@ -6,7 +6,7 @@ Projet de démonstration de Nicolas Hedoire : TypeScript, Mistral via Ollama, MC
 
 ## Essayer avec Docker
 
-Prérequis : Docker avec Compose, environ 10 Go d'espace pour images et modèle. Pour Mistral 7B, prévoir au moins 8 Go de mémoire disponibles pour Ollama ; 16 Go de RAM système ou plus sont conseillés. Le premier lancement télécharge les dépendances et environ 4,4 Go de poids. Les suivants réutilisent le volume du modèle.
+Prérequis : Docker avec Compose, au moins 12 Go d'espace libre pour images, modèle et marge de travail. Pour Mistral 7B, prévoir au moins 8 Go de mémoire disponibles pour Ollama ; 16 Go de RAM système ou plus sont conseillés. Le premier lancement télécharge les dépendances et environ 4,4 Go de poids. Les suivants réutilisent le volume du modèle.
 
 ```sh
 git clone https://github.com/nicolashedoire/kadran-mcp-proof.git
@@ -50,7 +50,7 @@ flowchart LR
   H[Opérateur humain · CLI] -->|approbation explicite| DB
 ```
 
-L'agent découvre les six outils au démarrage, transmet leurs schémas au modèle, exécute ses appels et lui retourne les résultats jusqu'à sa réponse finale. Il s'arrête au plus tard après 12 tours ou 24 appels d'outils. Le service de devis relit les sources via MCP et calcule les montants en centimes. Une consigne dans le texte d'un message ne peut pas créer un outil d'envoi ou d'approbation.
+L'agent découvre les six outils au démarrage et construit un schéma JSON de décisions à partir de leurs contrats MCP. Mistral choisit un outil et ses arguments dans ce format contraint ; l'agent l'exécute via MCP et retourne le résultat au modèle. Aucun appel métier n'est choisi automatiquement à sa place. Il s'arrête au plus tard après 12 tours ou 24 appels d'outils. Le service de devis relit les sources via MCP et calcule les montants en centimes. Une consigne dans le texte d'un message ne peut pas créer un outil d'envoi ou d'approbation.
 
 | Service | Outils MCP | Responsabilité |
 |---|---|---|

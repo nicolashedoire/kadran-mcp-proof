@@ -1,5 +1,5 @@
 import test from 'node:test';
-import { request } from 'node:http';
+import { request, createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { startCluster } from '../src/cluster.js';
 import { Hub, ToolFailure } from '../src/hub.js';
 import { runScenario } from '../src/workflow.js';
-import { runAgent, type Chat } from '../src/agent.js';
+import { runAgent, ollamaChat, type Chat } from '../src/agent.js';
 import type { Quote } from '../src/quotes.js';
 import { startService } from '../src/server.js';
 
@@ -186,4 +186,27 @@ test('agent forwards real MCP results to the next model turn and verifies persis
   };
   const result = await runAgent(hub, 'm-100', chat);
   assert.equal(result.status, 'draft_prepared'); assert.equal(result.steps, 2);
+});
+
+test('Ollama adapter derives decision grammar from MCP schemas and forwards the selected call', async t => {
+  const { hub } = await setup(t);
+  let requestBody: any;
+  const fakeOllama = createServer(async (req, res) => {
+    let body = ''; for await (const chunk of req) body += chunk;
+    requestBody = JSON.parse(body);
+    assert.equal(req.headers.authorization, undefined);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ message: { role: 'assistant', content: JSON.stringify({ tool: 'inbox__get', arguments: { id: 'm-100' } }) } }));
+  });
+  await new Promise<void>(resolve => fakeOllama.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => { fakeOllama.close(() => resolve()); fakeOllama.closeAllConnections(); }));
+  const address = fakeOllama.address() as { port: number };
+  const tools = [...hub.tools.values()].map(tool => ({ type: 'function', function: { ...tool, parameters: tool.inputSchema } }));
+  const reply = await ollamaChat(`http://127.0.0.1:${address.port}`, 'test-model')([
+    { role: 'system', content: 'Prepare a draft.' }, { role: 'user', content: 'Process m-100' },
+  ], tools);
+  assert.equal(requestBody.format.oneOf.length, 7);
+  const quoteChoice = requestBody.format.oneOf.find((choice: any) => choice.properties.tool.const === 'quotes__prepare');
+  assert.equal(quoteChoice.properties.arguments.additionalProperties, false);
+  assert.deepEqual(reply.message.tool_calls, [{ function: { name: 'inbox__get', arguments: { id: 'm-100' } } }]);
 });

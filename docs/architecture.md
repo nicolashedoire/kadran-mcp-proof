@@ -10,7 +10,9 @@ Le service Ollama a également un réseau sortant pour télécharger les poids, 
 
 ## Modèle et orchestration
 
-L'adaptateur Ollama utilise `/api/chat`, transmet les schémas découverts sur MCP, valide la structure des réponses et journalise les choix et résultats. Il ne contient pas de routeur métier qui choisirait les outils à la place de Mistral. Le pilote `workflow.ts` est distinct et sert aux tests reproductibles.
+L'adaptateur Ollama utilise `/api/chat` avec `format` JSON Schema. Il construit les alternatives de décision à partir des outils découverts sur MCP : un nom d'outil et des arguments, ou une décision de fin avec résumé. La grammaire contraint la forme, pas l'ordre des étapes ni la justesse des choix. Les schémas sont également donnés au modèle et les résultats des outils sont réinjectés dans la conversation. Il ne contient pas de routeur métier qui choisirait les outils à la place de Mistral. Le pilote `workflow.ts` est distinct et sert aux tests reproductibles.
+
+Ce choix répond à un échec observé : lors du premier essai en appels d'outils natifs, Mistral 7B a renvoyé une explication de procédure sans effectuer d'appel. Le format JSON contraint est donc l'interface d'exécution retenue pour ce petit modèle. Voir la [documentation officielle Ollama](https://docs.ollama.com/capabilities/structured-outputs).
 
 Les limites sont 12 tours, 24 appels d'outils, 768 tokens générés par tour et 240 secondes par requête de modèle. Ce plafond peut être long sur CPU : la limite d'étapes évite une boucle infinie, elle n'est pas un SLA. Aucune réussite ne se déduit du seul texte de réponse : la CLI relit le devis persistant. Un résultat absent reste à examiner, même si le modèle affirme avoir terminé.
 
