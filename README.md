@@ -1,129 +1,195 @@
 # Kadran · Local MCP Agent Proof
 
-**Un agent local transforme une demande de PME en devis à valider, en connectant quatre services via MCP. Sans clé API.**
+**Watch a local AI agent connect four MCP services and prepare a quote you can inspect. No API key required.**
 
-Projet de démonstration de Nicolas Hedoire : TypeScript, Mistral via Ollama, MCP sur HTTP, Docker Compose, persistance SQLite et tests d'intégration. Le code et les données sont conçus pour être examinés et exécutés par un recruteur. Toutes les sociétés, demandes et produits sont fictifs.
+A runnable reference project for SME automation, built with TypeScript, Mistral through Ollama, MCP over HTTP, Docker Compose and SQLite. Explore the code, run the scenarios and inspect the actual tool calls, quote line items and execution records. All companies, customers, requests and products are fictional.
 
-**Preuves disponibles :** tests Docker, exécution réelle de Mistral en 7 tours avec trace MCP et devis vérifié, puis contrôles de fin explicites pour éviter les recherches répétées sur un dossier incomplet. [Voir les résultats, les échecs observés et leurs limites](evidence/README.md).
+## See the agent at work
 
-## Essayer avec Docker
+The terminal interface and generated Markdown reports are in **French**, with plain-language explanations of each action. This README is in English. The showcase follows a real inference run. It displays service connectivity, model turns, elapsed time, observed tool results and the stored quote. When the run finishes, it prints a complete receipt that stays in your terminal scrollback:
 
-Prérequis : Docker avec Compose, au moins 12 Go d'espace libre pour images, modèle et marge de travail. Pour Mistral 7B, prévoir au moins 8 Go de mémoire disponibles pour Ollama ; 16 Go de RAM système ou plus sont conseillés. Le premier lancement télécharge les dépendances et environ 4,4 Go de poids. Les suivants réutilisent le volume du modèle.
+- **The quote:** customer, product references, quantities, unit prices, line totals and total excluding VAT.
+- **What happened:** each action and its observed result, with exact tool arguments in the exported activity report.
+- **Who initiated it:** `IA` marks model-selected calls; `CONTRÔLE` marks orchestrator verification.
+- **The outcome:** draft prepared, human review or budget exhausted. An existing quote is explicitly marked as a replay.
+
+### Real terminal screenshots
+
+![French terminal during a real local Mistral run, showing connected services and observed actions](docs/images/terminal-live.png)
+
+Live execution of the synthetic `m-100` request. The quote visible during the run already existed in SQLite; the agent is processing an idempotent replay.
+
+![Completed run showing the detailed 636 EUR quote and the actions selected by Mistral](docs/images/quote-and-actions.png)
+
+The final receipt shows **636 EUR excluding VAT**, the pending human review status, and the model's actual actions alongside automatic verification. These are screenshots of the running application, not generated mockups. [Read the captured run and downloadable reports](evidence/showcase/README.md).
+
+The actual tool order and number of calls are chosen by the model. The display does not invent progress percentages or treat a model's textual claim as proof that a quote exists.
+
+## Quick start with Docker
+
+Requirements: a running Docker installation with Compose, at least 12 GB of free disk space, and at least 8 GB of memory available to Ollama. A machine with 16 GB of RAM or more is recommended. The first run downloads container images and approximately 4.4 GB of model weights; subsequent runs reuse the model volume.
 
 ```sh
 git clone https://github.com/nicolashedoire/kadran-mcp-proof.git
 cd kadran-mcp-proof
-docker compose --profile llm up -d --build agent
-docker compose logs -f agent
+docker compose --profile llm run --build --rm showcase
 ```
 
-Le résultat JSON et les appels du modèle sont conservés dans un volume, même après l'arrêt des conteneurs. La première demande produit un devis de **636 € HT**, statut `pending_human_review`. Le texte final du modèle reste une sortie non fiable ; le champ `result.quote` provient du service de devis.
+Use a terminal at least 80 columns wide for the most readable live view. The display adapts to smaller windows and prints the full quote and activity list at completion. CPU inference can take several minutes. The services and model are local; no paid AI account or API credential is required.
+
+For a non-animated transcript, including when redirecting output:
 
 ```sh
-mkdir -p runtime
-docker compose cp agent:/output/. ./runtime/
-docker compose --profile llm down
+docker compose --profile llm run -T --rm showcase showcase m-100 --plain
 ```
 
-Après installation, l'inférence utilise le modèle local. Aucun fournisseur d'IA payant ni compte cloud n'est nécessaire. Aucun port de service n'est publié sur l'hôte par défaut.
+`-e NO_COLOR=1` passed to `docker compose run` disables color; `--plain` disables the live redraw as well. To try another request, replace `m-100` with `m-101` through `m-104`.
 
-## Vérifier sans télécharger de modèle
+### Keep the quote and activity report
+
+Each showcase run writes these files to a persistent Docker volume:
+
+| File | Contents |
+|---|---|
+| `quote.md` | Readable quote with line items, prices, status and replay information |
+| `activity.md` | Model-selected actions and orchestrator checks, with arguments and results |
+| `agent-result.json` | Structured outcome and stored quote |
+| `showcase-*.jsonl` | Full structured execution events, one trace file per run |
+
+The Markdown reports and result JSON describe the latest run. Trace files are retained separately. Export them without triggering another inference:
+
+```sh
+mkdir -p runtime/showcase
+docker compose --profile llm run -T --rm --no-deps --entrypoint tar showcase \
+  -C /output -cf - . | tar -xf - -C runtime/showcase
+```
+
+Open `runtime/showcase/quote.md` to inspect the quote and `runtime/showcase/activity.md` to review what happened. The records describe tool selections and observed results, not private model reasoning.
+
+### Machine-readable execution
+
+The original agent command retains its JSON output for scripts and integrations:
+
+```sh
+docker compose --profile llm run -T --build --rm agent
+```
+
+The `agent` and `showcase` commands use the same agent loop and business rules. The terminal view is a presentation layer over the real execution trace.
+
+## Check the system without a model download
 
 ```sh
 docker compose --profile test run --build --rm tests
 docker compose --profile demo run --build --rm demo
 ```
 
-Le premier lance les tests, le second exécute cinq cas métier et rejoue le premier pour vérifier l'idempotence. Le second est un **pilote de scénarios déterministe**, explicitement distinct de l'agent Mistral. Les deux utilisent de vrais échanges MCP HTTP avec découverte des outils et validation des arguments.
+The first command runs the integration tests. The second exercises five business fixtures and replays the first to verify idempotency. This second command is a **deterministic scenario driver**, separate from the real Mistral agent. Both use actual HTTP MCP exchanges, tool discovery and input validation.
 
-## Fonctionnement
+## How it works
 
 ```mermaid
 flowchart LR
-  O[Ollama · Mistral 7B local] <-->|appels d'outils| A[Agent TypeScript]
-  A <-->|MCP HTTP| I[Inbox · demandes fictives]
-  A <-->|MCP HTTP| C[CRM · clients fictifs]
-  A <-->|MCP HTTP| P[Catalogue · prix et stock]
-  A <-->|MCP HTTP| Q[Devis · règles métier]
-  Q -->|revérification MCP| I
-  Q -->|revérification MCP| C
-  Q -->|revérification MCP| P
-  Q --> DB[(SQLite persistant)]
-  H[Opérateur humain · CLI] -->|approbation explicite| DB
+  O[Ollama · local Mistral] <-->|JSON decisions| A[TypeScript agent]
+  A <-->|MCP HTTP| I[Inbox]
+  A <-->|MCP HTTP| C[CRM]
+  A <-->|MCP HTTP| P[Catalog]
+  A <-->|MCP HTTP| Q[Quote service]
+  Q -->|Verify sources over MCP| I
+  Q -->|Verify customer over MCP| C
+  Q -->|Verify pricing over MCP| P
+  Q --> DB[(Persistent SQLite)]
+  A --> T[Terminal · quote · activity report]
+  H[Human operator] -->|Explicit approval| DB
 ```
 
-L'agent découvre les six outils au démarrage et construit un schéma JSON de décisions à partir de leurs contrats MCP. Mistral choisit un outil et ses arguments dans ce format contraint ; l'agent l'exécute via MCP et retourne le résultat au modèle. Aucun appel métier n'est choisi automatiquement à sa place. Il s'arrête au plus tard après 12 tours ou 24 appels d'outils. Le service de devis relit les sources via MCP et calcule les montants en centimes. Une consigne dans le texte d'un message ne peut pas créer un outil d'envoi ou d'approbation.
+The agent discovers six tools and builds a JSON decision schema from their MCP contracts. Mistral selects a tool and its arguments within that format. The orchestrator executes the call, records its result and feeds the result back to the model.
 
-| Service | Outils MCP | Responsabilité |
+| Service | MCP tools | Responsibility |
 |---|---|---|
-| Inbox | `list`, `get` | Demandes issues d'un formulaire structuré et texte libre non fiable |
-| CRM | `find` | Correspondance exacte entre adresse du demandeur et client |
-| Catalogue | `get` | Prix HT en centimes et disponibilité fictive |
-| Devis | `prepare`, `get` | Vérification des sources, calcul, persistance et idempotence |
+| Inbox | `list`, `get` | Synthetic requests with structured intake items and untrusted free text |
+| CRM | `find` | Exact match between the sender email and a customer |
+| Catalog | `get` | Authoritative prices in integer EUR cents and fictional availability |
+| Quotes | `prepare`, `get` | Source verification, price calculation, persistence and idempotency |
 
-## Mode autonome
+The quote service independently rereads the inbox, CRM and catalog over MCP. It rejects altered quantities, forged customers and extra fields such as a model-supplied price or approval flag. A unique message identifier prevents duplicate quotes; conflicting replays are rejected.
+
+The orchestrator stops on authoritative blockers such as a missing customer, missing quantity or insufficient stock. A successful quote preparation is checked against storage and summarized from its actual values. Other runs stop after at most 12 model turns or 24 tool calls.
+
+## Autonomous worker
 
 ```sh
 docker compose --profile llm --profile worker up -d --build worker
 docker compose logs -f worker
 ```
 
-Le worker traite les demandes disponibles, conserve son avancement, puis vérifie la file toutes les 60 secondes. Une reprise continue les demandes restantes ; un devis déjà persistant est repris sans nouvelle inférence. Les erreurs d'inférence sont réessayées sur trois passages maximum. Les résultats nécessitant une intervention humaine et les budgets épuisés sont conservés pour revue, sans relance automatique.
+The worker processes the available queue, saves its progress and checks for work every 60 seconds. On restart, it resumes unfinished requests. A persisted quote is recovered without another inference. Inference failures are retried on at most three queue passes; human-review and budget-exhausted outcomes remain available for operator review.
 
-La file fournie contient cinq demandes fixes. Pour une démonstration commerciale, la source inbox serait remplacée par un adaptateur vers le formulaire, le CRM ou la messagerie de la PME. Un seul worker doit utiliser le volume d'état : cette version n'est pas un ordonnanceur distribué.
+The supplied queue contains five fixed fictional requests. Only one worker should use a given state volume. Connecting a real intake form, CRM or mailbox requires replacing the fixture adapters and adding the relevant access controls.
 
-L'autonomie couvre la lecture, les recherches et la préparation. **L'approbation est une commande d'opérateur et aucun envoi réel n'est implémenté.**
+**Autonomy covers reading, lookup and draft preparation. Approval remains an operator action; no real sending is implemented.**
 
 ```sh
 docker compose exec quotes node dist/src/cli.js approve m-100
 ```
 
-Cette commande marque l'approbation dans SQLite ; elle n'envoie aucun document. L'agent n'a pas accès à cette commande, au socket Docker ni au volume de devis.
+This command records approval in SQLite. It sends no document. The agent has access to neither this command, the Docker socket nor the quote database volume.
 
-## Mac Apple Silicon : option GPU
+## Observed results and limits
 
-Le mode entièrement Docker exécute Ollama sur CPU sur macOS. Pour utiliser Metal, lancer Ollama nativement tout en conservant l'agent et les quatre services dans Docker. Si le modèle est déjà installé dans Docker, l'installation native stocke une seconde copie d'environ 4,4 Go : prévoir cet espace supplémentaire avant de la lancer.
+The repository includes 18 passing Docker integration tests, a recorded Mistral run that verified a 636 EUR quote, and worker restart checks. These are local execution records, not hosted CI results or a general model benchmark.
+
+The worker evaluation produced a recovered quote, three outcomes requiring human review, and a hostile-text case that exhausted the model's step budget without producing a quote. **The hostile case is a model failure contained by the execution limit, not a successful quote preparation.** Earlier failures and the targeted recheck after adding a terminal condition are retained in the evidence.
+
+- [Recorded results and limitations](evidence/README.md) — detailed notes in French
+- [Architecture and tradeoffs](docs/architecture.md) — detailed notes in French
+- [Agent loop](src/agent.ts), [MCP client](src/hub.ts), [quote rules](src/quotes.ts)
+- [Terminal presentation](src/terminal.ts) and [report exports](src/reports.ts)
+- [Integration tests](tests/integration.test.ts)
+- [GitHub Actions configuration](docs/ci/README.md) — supplied but not active; the publication credential lacks workflow permission
+
+## Apple Silicon: optional native GPU inference
+
+The fully containerized configuration runs Ollama on CPU on macOS. To use Metal, run Ollama on the host while keeping the agent and MCP services in Docker. If the model is already installed inside Docker, this native installation stores another approximately 4.4 GB copy, so allow additional free disk space.
 
 ```sh
-# Dans un terminal, si l'application Ollama n'est pas déjà démarrée :
+# In one terminal, unless the Ollama application is already running:
 ollama serve
-# Dans un autre terminal :
+
+# In another terminal:
 ollama pull mistral:7b-instruct-v0.3-q4_K_M
-docker compose -f compose.yaml -f compose.native.yaml --profile native up -d --build agent
-docker compose -f compose.yaml -f compose.native.yaml logs -f agent
+docker compose -f compose.yaml -f compose.native.yaml --profile native \
+  run --build --rm showcase
 ```
 
-L'override nécessite Compose ≥ 2.24.4 et autorise l'agent à joindre `host.docker.internal`. Sur Linux avec GPU NVIDIA, configurer le runtime NVIDIA et l'accès GPU d'Ollama selon sa documentation ; le fichier principal reste portable sur CPU.
+The override requires Compose 2.24.4 or later and lets the agent reach `host.docker.internal`. Its Compose configuration is validated; native GPU inference has not been verified end to end in the recorded environment. For an NVIDIA GPU on Linux, configure the NVIDIA runtime and Ollama GPU access according to the upstream documentation.
 
-## Ce que les preuves couvrent
+## Local development
 
-Les tests vérifient le protocole MCP, les schémas stricts, les incohérences client/demande, les quantités manquantes, le stock, les doublons concurrents, la reprise SQLite, une réponse perdue après écriture et les budgets d'agent. Ils incluent des réponses de modèle simulées pour vérifier les contrôles indépendamment de ses capacités.
-
-Les exécutions réelles du modèle sont conservées séparément dans [evidence](evidence/README.md). Une exécution réussie démontre ce cas précis ; elle ne constitue pas une mesure générale de fiabilité du modèle ou d'immunité aux injections.
-
-- [Architecture et décisions](docs/architecture.md)
-- [Parcours d'entretien et limites](docs/interview.md)
-- [Code de l'agent](src/agent.ts), [client MCP](src/hub.ts), [règles de devis](src/quotes.ts)
-- [Tests examinables](tests/integration.test.ts)
-- [Configuration CI prête à activer](docs/ci/README.md) — les preuves actuelles ont été exécutées localement.
-
-## Développement local
-
-Node.js 24 est requis. Sans variables de connexion, la CLI démarre automatiquement quatre serveurs HTTP temporaires dans le même processus. Docker utilise quatre conteneurs distincts.
+Node.js 24 is required. Without MCP endpoint environment variables, the CLI starts four temporary HTTP servers in one process. Docker runs the services in separate containers.
 
 ```sh
 npm ci
 npm test
 npm run demo
+npm run showcase -- m-100
+# Or JSON output:
 npm run agent -- m-100
 ```
 
-Les sorties locales sont dans `runtime/` et exclues de Git. Les volumes Docker conservent les données. `docker compose down` arrête les services ; ne supprimer les volumes que pour réinitialiser volontairement la démonstration, car cela supprime aussi le modèle téléchargé.
+Ollama must be running with the model installed for `showcase` and `agent`. Set `OLLAMA_MODEL` to select another installed model, or `OLLAMA_URL` to use a different Ollama endpoint. Outputs are stored under `runtime/` and excluded from Git.
 
-## Positionnement
+To stop the Docker stack while retaining its model, quotes and reports:
 
-Ce projet, créé pour rendre mon travail examinable, prolonge mon axe Kadran : automatiser des tâches concrètes de PME avec des outils, des traces et une validation humaine. Il a été développé avec une assistance IA. Il ne représente ni une mission client livrée ni un résultat commercial mesuré. Les connecteurs métier sont des démonstrateurs locaux, pas des connexions actives à Gmail, HubSpot ou un ERP.
+```sh
+docker compose --profile llm --profile worker down
+```
 
-Auteur : [Nicolas Hedoire](https://nicolashedoire.com). Licence MIT pour ce code ; les dépendances et les poids du modèle conservent leurs licences propres.
+Deleting the volumes also deletes the downloaded model and persisted demonstration data.
 
-Références : [SDK MCP officiel](https://github.com/modelcontextprotocol/typescript-sdk), [appels d'outils Ollama](https://docs.ollama.com/capabilities/tool-calling), [Mistral 7B](https://ollama.com/library/mistral), [Ollama et accélération GPU](https://docs.ollama.com/faq), [ordre de démarrage Compose](https://docs.docker.com/compose/how-tos/startup-order/).
+## Scope and license
+
+This project demonstrates local agent integration, source verification, bounded execution, audit records and operator approval using synthetic data. It was developed with AI assistance. It does not represent a deployed customer system or measured commercial savings. The business connectors are local demonstrators, not active integrations with Gmail, HubSpot or an ERP.
+
+The code is available under the [MIT license](LICENSE). Dependencies and model weights retain their own licenses.
+
+References: [official MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk), [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [Mistral 7B](https://ollama.com/library/mistral), [Ollama hardware and deployment FAQ](https://docs.ollama.com/faq), [Compose startup ordering](https://docs.docker.com/compose/how-tos/startup-order/).

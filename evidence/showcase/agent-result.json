@@ -1,0 +1,34 @@
+{
+  "mode": "local_llm",
+  "model": "mistral:7b-instruct-v0.3-q4_K_M",
+  "generatedAt": "2026-09-10T12:53:41.629Z",
+  "runId": "bb16b0ec-3b28-4c94-baeb-6d732ad77d12",
+  "durationMs": 15893,
+  "quoteExistedBeforeRun": true,
+  "result": {
+    "messageId": "m-100",
+    "status": "draft_prepared",
+    "steps": 6,
+    "quote": {
+      "id": "q-m-100",
+      "messageId": "m-100",
+      "customerId": "c-atelier",
+      "status": "pending_human_review",
+      "currency": "EUR",
+      "totalExVatCents": 63600,
+      "items": [
+        {
+          "sku": "HUB-01",
+          "quantity": 1,
+          "unitPriceCents": 24900
+        },
+        {
+          "sku": "SENSOR-01",
+          "quantity": 3,
+          "unitPriceCents": 12900
+        }
+      ]
+    },
+    "summary": "Devis q-m-100 préparé : 636.00 EUR HT. Statut : pending_human_review."
+  }
+}

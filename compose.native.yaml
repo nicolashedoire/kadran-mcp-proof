@@ -11,6 +11,16 @@ services:
       crm: { condition: service_healthy }
       catalog: { condition: service_healthy }
       quotes: { condition: service_healthy }
+  showcase:
+    profiles: !override [native]
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+    networks: !override [business, model-download]
+    depends_on: !override
+      inbox: { condition: service_healthy }
+      crm: { condition: service_healthy }
+      catalog: { condition: service_healthy }
+      quotes: { condition: service_healthy }
   worker:
     profiles: !override [native-worker]
     environment:

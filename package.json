@@ -12,7 +12,8 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "demo": "npm run build && node dist/src/cli.js demo",
     "verify": "npm test && node dist/src/cli.js verify",
-    "agent": "npm run build && node dist/src/cli.js agent"
+    "agent": "npm run build && node dist/src/cli.js agent",
+    "showcase": "npm run build && node dist/src/cli.js showcase"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0",

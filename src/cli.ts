@@ -5,6 +5,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import { Hub, services, type Endpoints, type Service } from './hub.js';
 import { Trace } from './trace.js';
+import { TerminalDashboard } from './terminal.js';
+import { writeRunReports } from './reports.js';
 import { startService } from './server.js';
 import { QuoteStore } from './quotes.js';
 import { startCluster } from './cluster.js';
@@ -38,22 +40,26 @@ async function main() {
     try { console.log(JSON.stringify(store.approve(process.argv[3]), null, 2)); } finally { store.close(); }
     return;
   }
-  if (!['demo', 'verify', 'agent', 'worker'].includes(command)) throw new Error(`Unknown command: ${command}`);
+  if (!['demo', 'verify', 'agent', 'showcase', 'worker'].includes(command)) throw new Error(`Unknown command: ${command}`);
   mkdirSync(output, { recursive: true });
   const cluster = Object.keys(endpointsFromEnv()).length ? null : await startCluster(database);
   const trace = new Trace(join(output, `${command}-${randomUUID()}.jsonl`));
   const hub = new Hub(trace);
+  const messageId = process.argv.slice(3).find(arg => !arg.startsWith('--')) ?? 'm-100';
+  const dashboard = command === 'showcase' ? new TerminalDashboard(trace, messageId, model, process.argv.includes('--plain')) : undefined;
+  dashboard?.start();
   try {
     await hub.connect(cluster?.endpoints ?? endpointsFromEnv());
-    if (command === 'agent') {
-      const messageId = process.argv[3] ?? 'm-100';
+    if (command === 'agent' || command === 'showcase') {
       const quoteBefore = await hub.call('quotes__get', { messageId });
       const started = performance.now();
       const result = await runAgent(hub, messageId, ollamaChat(process.env.OLLAMA_URL ?? 'http://localhost:11434', model));
       const evidence = { mode: 'local_llm', model, generatedAt: new Date().toISOString(), runId: trace.runId,
         durationMs: Math.round(performance.now() - started), quoteExistedBeforeRun: quoteBefore !== null, result };
       writeFileSync(join(output, 'agent-result.json'), JSON.stringify(evidence, null, 2));
-      console.log(JSON.stringify(evidence, null, 2));
+      writeRunReports(output, trace, result, quoteBefore !== null);
+      if (dashboard) dashboard.finish(result, quoteBefore !== null, output);
+      else console.log(JSON.stringify(evidence, null, 2));
       if (result.status === 'budget_exhausted') process.exitCode = 2;
     } else if (command === 'worker') {
       await worker(hub);
@@ -72,7 +78,7 @@ async function main() {
       writeFileSync(join(output, 'verification.json'), JSON.stringify(report, null, 2));
       console.log(JSON.stringify(report, null, 2));
     }
-  } finally { await hub.close(); await cluster?.close(); }
+  } finally { dashboard?.stop(); await hub.close(); await cluster?.close(); }
 }
 
 async function worker(hub: Hub) {
